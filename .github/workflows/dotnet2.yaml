@@ -8,10 +8,10 @@ jobs:
     build:
         runs-on: ubuntu-latest
         steps:
-            # - name: setup dotnet
-            #   uses: actions/setup-dotnet@v5
-            #   with:
-            #       dotnet-version: 9.0.x
+            - name: setup dotnet
+              uses: actions/setup-dotnet@v5
+              with:
+                  dotnet-version: 9.0.x
             - name: checkout
               uses: actions/checkout@v5
             - name: restore
