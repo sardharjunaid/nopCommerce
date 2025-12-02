@@ -17,6 +17,6 @@ jobs:
             - name: restore
               uses: dotnet restore src/Presentation/Nop.Web/Nop.Web.csproj
             - name: build
-              uses: dotnet build --configuration release src/Presentation/Nop.Web/Nop.Web.csproj
+              uses: dotnet build --configuration Release src/Presentation/Nop.Web/Nop.Web.csproj
             - name: publish the package
-              uses: dotnet publish --configuration release src/Presentation/Nop.Web/Nop.Web.csproj -o published/
+              uses: dotnet publish --configuration Release src/Presentation/Nop.Web/Nop.Web.csproj -o published/
