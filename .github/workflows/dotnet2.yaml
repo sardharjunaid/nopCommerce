@@ -17,6 +17,11 @@ jobs:
         uses: actions/checkout@v5
       - name: build .NET
         run: dotnet build --configuration Release src/Presentation/Nop.Web/Nop.Web.csproj
+      - name: Copy Themes for tests
+        run: |
+          mkdir -p src/Tests/Nop.Tests/bin/Debug/net9.0/Themes
+          cp -R src/Presentation/Nop.Web/Themes/* src/Tests/Nop.Tests/bin/Debug/net9.0/Themes/
+
       - name: test
         run: dotnet test src/Tests/Nop.Tests/Nop.Tests.csproj
       - name: publish the .NET package
