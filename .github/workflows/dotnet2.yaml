@@ -1,8 +1,8 @@
 name: workflow for dotnet
 on:
-    push:
+    pull_request:
         branches:
-            - feature
+            - develop
     workflow_dispatch:
 jobs:
     build:
@@ -18,5 +18,7 @@ jobs:
               run: dotnet restore src/Presentation/Nop.Web/Nop.Web.csproj
             - name: build
               run: dotnet build --configuration Release src/Presentation/Nop.Web/Nop.Web.csproj
+            - name: test
+              run: dotnet test src/Tests/Nop.Tests/Nop.Tests.csproj
             - name: publish the package
               run: dotnet publish --configuration Release src/Presentation/Nop.Web/Nop.Web.csproj -o published/
