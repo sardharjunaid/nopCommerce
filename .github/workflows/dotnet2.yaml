@@ -11,14 +11,13 @@ jobs:
             - name: setup dotnet
               uses: actions/setup-dotnet@v5
               with:
-                  dotnet-version: 9.0.x
+                  dotnet-version: |
+                      9.0.x
             - name: checkout
               uses: actions/checkout@v5
-            - name: restore
-              run: dotnet restore src/Presentation/Nop.Web/Nop.Web.csproj
-            - name: build
+            - name: build .NET
               run: dotnet build --configuration Release src/Presentation/Nop.Web/Nop.Web.csproj
             - name: test
               run: dotnet test src/Tests/Nop.Tests/Nop.Tests.csproj
-            - name: publish the package
+            - name: publish the .NET package
               run: dotnet publish --configuration Release src/Presentation/Nop.Web/Nop.Web.csproj -o published/
