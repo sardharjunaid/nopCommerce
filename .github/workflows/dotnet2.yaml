@@ -1,8 +1,8 @@
 name: workflow for dotnet
 on:
-    pull_request:
+    push:
         branches:
-            - develop
+            - feature
     workflow_dispatch:
 jobs:
     build:
