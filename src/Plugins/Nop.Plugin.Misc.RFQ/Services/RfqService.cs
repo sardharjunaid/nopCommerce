@@ -172,7 +172,7 @@ public class RfqService
         if (string.IsNullOrEmpty(note))
             return;
 
-        note = DateTime.UtcNow.ToString(RfqDefaults.DateTimeStringFormat) + $": {note}";
+        note = DateTime.UtcNow.ToString(RfqDefaults.DateTimeStringFormat) + $"(UTC): {note}";
 
         if (!string.IsNullOrEmpty(noteItem.AdminNotes))
             note += "\r\n";
@@ -229,7 +229,7 @@ public class RfqService
                     await UpdateQuantityWithLogAsync(requestQuoteItem, quantity);
                 break;
             case RfqDefaults.UNIT_PRICE_FORM_KEY:
-                if (decimal.TryParse(formValue, out var price) && requestQuoteItem.RequestedUnitPrice != price)
+                if (decimal.TryParse(formValue, NumberStyles.Any, CultureInfo.InvariantCulture, out var price) && requestQuoteItem.RequestedUnitPrice != price)
                     await UpdateUnitPriceWithLogAsync(requestQuoteItem, price);
 
                 break;

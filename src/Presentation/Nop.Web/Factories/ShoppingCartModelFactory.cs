@@ -87,6 +87,7 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
     protected readonly IWorkContext _workContext;
     protected readonly MediaSettings _mediaSettings;
     protected readonly OrderSettings _orderSettings;
+    protected readonly ReturnRequestSettings _returnRequestSettings;
     protected readonly RewardPointsSettings _rewardPointsSettings;
     protected readonly ShippingSettings _shippingSettings;
     protected readonly ShoppingCartSettings _shoppingCartSettings;
@@ -142,6 +143,7 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
         IWorkContext workContext,
         MediaSettings mediaSettings,
         OrderSettings orderSettings,
+        ReturnRequestSettings returnRequestSettings,
         RewardPointsSettings rewardPointsSettings,
         ShippingSettings shippingSettings,
         ShoppingCartSettings shoppingCartSettings,
@@ -192,6 +194,7 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
         _workContext = workContext;
         _mediaSettings = mediaSettings;
         _orderSettings = orderSettings;
+        _returnRequestSettings = returnRequestSettings;
         _rewardPointsSettings = rewardPointsSettings;
         _shippingSettings = shippingSettings;
         _shoppingCartSettings = shoppingCartSettings;
@@ -262,11 +265,15 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
                             await _currencyService.ConvertFromPrimaryStoreCurrencyAsync(priceAdjustmentBase,
                                 await _workContext.GetWorkingCurrencyAsync());
                         if (priceAdjustmentBase > decimal.Zero)
+                        {
                             attributeValueModel.PriceAdjustment =
                                 "+" + await _priceFormatter.FormatPriceAsync(priceAdjustment);
+                        }
                         else if (priceAdjustmentBase < decimal.Zero)
+                        {
                             attributeValueModel.PriceAdjustment =
                                 "-" + await _priceFormatter.FormatPriceAsync(-priceAdjustment);
+                        }
                     }
                 }
             }
@@ -294,8 +301,10 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
                             _checkoutAttributeParser.ParseAttributeValues(selectedCheckoutAttributes);
                         foreach (var attributeValue in await selectedValues.SelectMany(x => x.values).ToListAsync())
                         foreach (var item in attributeModel.Values)
+                        {
                             if (attributeValue.Id == item.Id)
                                 item.IsPreSelected = true;
+                        }
                     }
                 }
 
@@ -421,8 +430,10 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
 
         //recurring info
         if (product.IsRecurring)
+        {
             cartItemModel.RecurringInfo = string.Format(await _localizationService.GetResourceAsync("ShoppingCart.RecurringPeriod"),
                 product.RecurringCycleLength, await _localizationService.GetLocalizedEnumAsync(product.RecurringCyclePeriod));
+        }
 
         //rental info
         if (product.IsRental)
@@ -561,8 +572,10 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
 
         //recurring info
         if (product.IsRecurring)
+        {
             cartItemModel.RecurringInfo = string.Format(await _localizationService.GetResourceAsync("ShoppingCart.RecurringPeriod"),
                 product.RecurringCycleLength, await _localizationService.GetLocalizedEnumAsync(product.RecurringCyclePeriod));
+        }
 
         //rental info
         if (product.IsRental)
@@ -736,6 +749,12 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
                 NopCustomerDefaults.SelectedShippingOptionAttribute, store.Id);
             if (shippingOption != null)
                 model.ShippingMethod = shippingOption.Name;
+
+            //selected delivery date
+            var desiredDeliveryDate = await _genericAttributeService.GetAttributeAsync<DateTime?>(customer,
+                NopCustomerDefaults.DesiredDeliveryDate, store.Id);
+            if (desiredDeliveryDate.HasValue)
+                model.DesiredDeliveryDate = (await _dateTimeHelper.ConvertToUserTimeAsync(desiredDeliveryDate.Value, DateTimeKind.Utc)).ToString("D");
         }
 
         //payment info
@@ -795,12 +814,14 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
 
             var currentLanguage = await _workContext.GetWorkingLanguageAsync();
             foreach (var c in await _countryService.GetAllCountriesForShippingAsync(currentLanguage.Id))
+            {
                 model.AvailableCountries.Add(new SelectListItem
                 {
                     Text = await _localizationService.GetLocalizedAsync(c, x => x.Name),
                     Value = c.Id.ToString(),
                     Selected = c.Id == defaultEstimateCountryId
                 });
+            }
 
             //states
             var defaultEstimateStateId = (setEstimateShippingDefaultAddress && shippingAddress != null)
@@ -884,7 +905,10 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
             model.MinOrderSubtotalWarning = string.Format(await _localizationService.GetResourceAsync("Checkout.MinOrderSubtotalAmount"), await _priceFormatter.FormatPriceAsync(minOrderSubtotalAmount, true, false));
         }
 
-        model.TermsOfServiceOnShoppingCartPage = _orderSettings.TermsOfServiceOnShoppingCartPage;
+        var termsForDownloadableProducts = !_returnRequestSettings.DownloadableProductsReturnRequestsAllowed &&
+            await _productService.HasAnyDownloadableProductAsync(cart.Select(ci => ci.ProductId).ToArray());
+
+        model.TermsOfServiceOnShoppingCartPage = termsForDownloadableProducts || _orderSettings.TermsOfServiceOnShoppingCartPage;
         model.TermsOfServiceOnOrderConfirmPage = _orderSettings.TermsOfServiceOnOrderConfirmPage;
         model.TermsOfServicePopup = _commonSettings.PopupForTermsOfServiceLinks;
         model.DisplayTaxShippingInfo = _catalogSettings.DisplayTaxShippingInfoShoppingCart;
@@ -951,9 +975,7 @@ public partial class ShoppingCartModelFactory : IShoppingCartModelFactory
 
         //order review data
         if (prepareAndDisplayOrderReviewData)
-        {
             model.OrderReviewData = await PrepareOrderReviewDataModelAsync(cart);
-        }
 
         return model;
     }

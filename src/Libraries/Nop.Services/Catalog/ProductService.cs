@@ -41,6 +41,7 @@ public partial class ProductService : IProductService
     protected readonly IRepository<LocalizedProperty> _localizedPropertyRepository;
     protected readonly IRepository<Manufacturer> _manufacturerRepository;
     protected readonly IRepository<Product> _productRepository;
+    protected readonly IRepository<Product3dObject> _product3dObjectRepository;
     protected readonly IRepository<ProductAttributeCombination> _productAttributeCombinationRepository;
     protected readonly IRepository<ProductAttributeMapping> _productAttributeMappingRepository;
     protected readonly IRepository<ProductCategory> _productCategoryRepository;
@@ -81,6 +82,7 @@ public partial class ProductService : IProductService
         IRepository<LocalizedProperty> localizedPropertyRepository,
         IRepository<Manufacturer> manufacturerRepository,
         IRepository<Product> productRepository,
+        IRepository<Product3dObject> product3dObjectRepository,
         IRepository<ProductAttributeCombination> productAttributeCombinationRepository,
         IRepository<ProductAttributeMapping> productAttributeMappingRepository,
         IRepository<ProductCategory> productCategoryRepository,
@@ -116,6 +118,7 @@ public partial class ProductService : IProductService
         _localizedPropertyRepository = localizedPropertyRepository;
         _manufacturerRepository = manufacturerRepository;
         _productRepository = productRepository;
+        _product3dObjectRepository = product3dObjectRepository;
         _productAttributeCombinationRepository = productAttributeCombinationRepository;
         _productAttributeMappingRepository = productAttributeMappingRepository;
         _productCategoryRepository = productCategoryRepository;
@@ -261,9 +264,7 @@ public partial class ProductService : IProductService
             else
             {
                 if (combination.AllowOutOfStockOrders)
-                {
                     stockMessage = await _localizationService.GetResourceAsync("Products.Availability.InStock");
-                }
                 else
                 {
                     var productAvailabilityRange = await
@@ -286,6 +287,7 @@ public partial class ProductService : IProductService
                 var selectedIds = allIds.Intersect(exIds).ToList();
 
                 if (selectedIds.Count != allIds.Count)
+                {
                     if (_catalogSettings.AttributeValueOutOfStockDisplayType == AttributeValueOutOfStockDisplayType.AlwaysDisplay)
                         return await _localizationService.GetResourceAsync("Products.Availability.SelectRequiredAttributes");
                     else
@@ -301,6 +303,7 @@ public partial class ProductService : IProductService
                         if (flag)
                             return await _localizationService.GetResourceAsync("Products.Availability.SelectRequiredAttributes");
                     }
+                }
 
                 var productAvailabilityRange = await
                     _dateRangeService.GetProductAvailabilityRangeByIdAsync(product.ProductAvailabilityRangeId);
@@ -310,9 +313,7 @@ public partial class ProductService : IProductService
                         await _localizationService.GetLocalizedAsync(productAvailabilityRange, range => range.Name));
             }
             else
-            {
                 stockMessage = await _localizationService.GetResourceAsync("Products.Availability.InStock");
-            }
         }
 
         return stockMessage;
@@ -1049,12 +1050,11 @@ public partial class ProductService : IProductService
                     join c in _categoryRepository.Table on pc.CategoryId equals c.Id
                     where (!excludeFeaturedProducts || !pc.IsFeaturedProduct) &&
                           categoryIds.Contains(pc.CategoryId)
-                    orderby c.DisplayOrder
-                    group pc by pc.ProductId into pc
+                    group c.DisplayOrder by pc.ProductId into gr
                     select new
                     {
-                        ProductId = pc.Key,
-                        DisplayOrder = pc.First().DisplayOrder
+                        ProductId = gr.Key,
+                        DisplayOrder = gr.Min()
                     };
 
                 productsQuery =
@@ -1188,10 +1188,8 @@ public partial class ProductService : IProductService
                 (!p.AvailableEndDateTimeUtc.HasValue || p.AvailableEndDateTimeUtc.Value > DateTime.UtcNow));
         }
         //vendor filtering
-        if (vendorId > 0)
-        {
+        if (vendorId > 0) 
             query = query.Where(p => p.VendorId == vendorId);
-        }
 
         //apply store mapping constraints
         if (!showHidden && storeId > 0)
@@ -1370,8 +1368,10 @@ public partial class ProductService : IProductService
         foreach (var idStr in product.RequiredProductIds
                      .Split(_separator, StringSplitOptions.RemoveEmptyEntries)
                      .Select(x => x.Trim()))
+        {
             if (int.TryParse(idStr, out var id))
                 ids.Add(id);
+        }
 
         return ids.ToArray();
     }
@@ -1760,9 +1760,8 @@ public partial class ProductService : IProductService
 
                 if (product.AllowAddingOnlyExistingAttributeCombinations)
                 {
-                    var totalStockByAllCombinations = await (await _productAttributeService.GetAllProductAttributeCombinationsAsync(product.Id))
-                        .ToAsyncEnumerable()
-                        .SumAsync(c => c.StockQuantity);
+                    var totalStockByAllCombinations = (await _productAttributeService.GetAllProductAttributeCombinationsAsync(product.Id))
+                        .Sum(c => c.StockQuantity);
 
                     await ApplyLowStockActivityAsync(product, totalStockByAllCombinations);
                 }
@@ -1792,10 +1791,8 @@ public partial class ProductService : IProductService
 
             //associated product (bundle)
             var associatedProduct = await GetProductByIdAsync(attributeValue.AssociatedProductId);
-            if (associatedProduct != null)
-            {
+            if (associatedProduct != null) 
                 await AdjustInventoryAsync(associatedProduct, quantityToChange * attributeValue.Quantity, message);
-            }
         }
     }
 
@@ -2250,10 +2247,12 @@ public partial class ProductService : IProductService
         var products = _productRepository.Table;
 
         if (discountId.HasValue)
+        {
             products = from product in products
                 join dpm in _discountProductMappingRepository.Table on product.Id equals dpm.EntityId
                 where dpm.DiscountId == discountId.Value
                 select product;
+        }
 
         if (!showHidden)
             products = products.Where(product => !product.Deleted);
@@ -2513,6 +2512,52 @@ public partial class ProductService : IProductService
     public virtual async Task DeleteDiscountProductMappingAsync(DiscountProductMapping discountProductMapping)
     {
         await _discountProductMappingRepository.DeleteAsync(discountProductMapping);
+    }
+
+    #endregion
+
+    #region Product 3D objects
+
+    /// <summary>
+    /// Gets the 3D object associated with the product
+    /// </summary>
+    /// <param name="product">Product</param>
+    /// <returns>The task result contains the associated 3D object, or <c>null</c> if the 3D object is not found</returns>
+    public virtual async Task<Product3dObject> GetProduct3dObjectAsync(Product product)
+    {
+        ArgumentNullException.ThrowIfNull(product);
+
+        return await _product3dObjectRepository.Table.FirstOrDefaultAsync(x => x.ProductId == product.Id);
+    }
+
+    /// <summary>
+    /// Deletes the 3D object
+    /// </summary>
+    /// <param name="product3dObject">The 3D object</param>
+    /// <returns>A task that represents the asynchronous operation</returns>
+    public virtual async Task DeleteProduct3dObjectAsync(Product3dObject product3dObject)
+    {
+        await _product3dObjectRepository.DeleteAsync(product3dObject);
+    }
+
+    /// <summary>
+    /// Inserts the 3D object
+    /// </summary>
+    /// <param name="product3dObject">The 3D object</param>
+    /// <returns>A task that represents the asynchronous operation</returns>
+    public virtual async Task InsertProduct3dObjectAsync(Product3dObject product3dObject)
+    {
+        await _product3dObjectRepository.InsertAsync(product3dObject);
+    }
+
+    /// <summary>
+    /// Updates the 3D object
+    /// </summary>
+    /// <param name="product3dObject">The 3D object</param>
+    /// <returns>A task that represents the asynchronous operation</returns>
+    public virtual async Task UpdateProduct3dObjectAsync(Product3dObject product3dObject)
+    {
+        await _product3dObjectRepository.UpdateAsync(product3dObject);
     }
 
     #endregion
