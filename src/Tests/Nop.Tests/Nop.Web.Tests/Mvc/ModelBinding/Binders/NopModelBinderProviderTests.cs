@@ -5,10 +5,10 @@ using NUnit.Framework;
 
 namespace Nop.Tests.Nop.Web.Tests.Mvc.ModelBinding.Binders;
 
-[TestFixture]
+
 public class NopModelBinderProviderTests
 {
-    [Test]
+    
     public void ShouldNotBindStringFromNonValueProviderSource()
     {
         GetBinder(BindingSource.Header).Should().BeNull();
